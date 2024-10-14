@@ -2,8 +2,10 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
 
 const initialState = {
-  user: null,
-  token: null,
+  org: null,
+  token:  null,
+  access: null,
+  userID: null,
   status: 'idle',
   error: null,
 };
@@ -33,11 +35,11 @@ export const authSlice = createSlice({
   initialState,
   reducers: {
     clearAuth: (state) => {
-      state.user = null;
-      state.token = null;
-      state.error = null;
-      state.filemakerId = null;
-      state.userAccess = null;
+      state.org = null || "";
+      state.token = null || "";
+      state.access = null || "";
+      state.error = null || "";
+      state.userID = null || "";
     },
   },
   extraReducers: (builder) => {
@@ -48,10 +50,10 @@ export const authSlice = createSlice({
       })
       .addCase(loginUser.fulfilled, (state, action) => {
         state.status = 'succeeded';
-        state.user = action.payload.username;
+        state.org = action.payload.companyName;
         state.token = action.payload.token;
-        state.userAccess = action.payload.userAccess;
-        state.filemakerId = action.payload.filemakerId;
+        state.access = action.payload.userAccess;
+        state.userID = action.payload.filemakerId;
       })
       .addCase(loginUser.rejected, (state, action) => {
         state.status = 'failed';

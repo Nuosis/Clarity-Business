@@ -4,30 +4,31 @@ import { persistReducer, persistStore } from 'redux-persist';
 import authReducer from './slices/authSlice';  // Persisted slice
 import themeReducer from './slices/themeSlice';
 import userReducer from './slices/userSlice';
-import { clarityApi } from '../services/clarity/clarityApi';  // Ensure the correct path to clarityApi
+import { clarityApi } from '../services/clarity/clarityApi';
 
 // Persist config for the auth slice
 const authPersistConfig = {
   key: 'auth',
   storage,
   whitelist: ['token', 'org', 'access', 'userID'],  // Persist only auth state
+  timeout: 86400000, // 1 day in milliseconds (24 hours)
 };
 
 // Apply persistReducer to auth slice only
 const persistedAuthReducer = persistReducer(authPersistConfig, authReducer);
 
 const store = configureStore({
-  devTools: process.env.NODE_ENV !== 'production',  // Fix environment variable
+  devTools: process.env.NODE_ENV !== 'production',
   reducer: {
     auth: persistedAuthReducer,  // Use persisted auth reducer
     theme: themeReducer,  // Non-persisted theme slice
-    user: userReducer,  // User slice
-    [clarityApi.reducerPath]: clarityApi.reducer,  // RTK Query reducer
+    user: userReducer,
+    [clarityApi.reducerPath]: clarityApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: false,  // Disable serializable checks for Redux Persist
-    }).concat(clarityApi.middleware),  // Add RTK Query middleware
+    }),
 });
 
 export const persistor = persistStore(store);

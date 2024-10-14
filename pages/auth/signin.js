@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useDispatch, useSelector } from 'react-redux';
 import { loginUser } from '@/store/slices/authSlice';
+import { fetchUser } from '@/store/slices/userSlice';
 import { IconEye, IconEyeOff } from '@tabler/icons-react';
 import AuthLayout from '@/components/layout/AuthLayout';
 
@@ -11,7 +12,10 @@ export default function Signin() {
   const [apiKey] = useState(process.env.NEXT_PUBLIC_APP_TOKEN);
   const [showPassword, setShowPassword] = useState(false);
   const dispatch = useDispatch();
-  const { status, error } = useSelector((state) => state.auth);
+  const authStatus = useSelector((state) => state.auth.status);
+  const authError = useSelector((state) => state.auth.error);
+  const userStatus = useSelector((state) => state.user.status);
+  const userError = useSelector((state) => state.user.error);
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
@@ -19,8 +23,35 @@ export default function Signin() {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    dispatch(loginUser({ username: email, password, apiKey }));
+    
+    // Dispatch loginUser action to handle authentication
+    dispatch(loginUser({ username: email, password, apiKey }))
+      .then((loginResponse) => {
+        // Check if the login was successful
+        if (loginResponse.meta.requestStatus === 'fulfilled') {
+          const userID = loginResponse.payload.filemakerId;
+          const token = loginResponse.payload.token;
+  
+          // Log userID and token to verify they are available
+          console.log('Triggering findUser API call with:', { userID, token });
+  
+          // Dispatch findUser query to load user data
+          dispatch(fetchUser({userID, token})).then((userResponse) => {
+            // Log the fetchUser response
+            console.log('fetchUser response:', userResponse);
+          }).catch((error) => {
+            // Log any errors during fetchUser
+            console.error('Error fetching user:', error);
+          });
+        }
+      })
+      .catch((error) => {
+        // Handle login error
+        console.error('Login failed:', error);
+      });
   };
+  
+  
 
   return (
     <AuthLayout>
@@ -71,14 +102,21 @@ export default function Signin() {
         </div>
 
         {/* Show error message if login fails */}
-        {status === 'failed' && (
-          <div className='text-red-500 mb-4'>
-            Error: {error || 'Login failed. Please try again.'}
+        {authStatus === 'failed' && (
+          <div className='text-red-500 mb-4 break-words'>
+            Error: {authError || 'Login failed. Please try again.'}
+          </div>
+        )}
+
+        {/* Show error message if login fails */}
+        {userStatus === 'failed' && (
+          <div className='text-red-500 mb-4 break-words'>
+            Error: {userError || 'Issue loading user. Please try again.'}
           </div>
         )}
 
         {/* Show loading indicator while waiting for the login API response */}
-        {status === 'loading' ? (
+        {authStatus === 'loading' ? (
           <button type='button' disabled className='btn btn-secondary large w-full uppercase'>
             Logging in...
           </button>
