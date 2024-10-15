@@ -1,45 +1,8 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import { getFileMakerToken, releaseFileMakerToken } from '../fileMaker/fileMakerToken';
-
-const server = process.env.NEXT_PUBLIC_CLARITY_URL;
-const username = process.env.CLARITYun;
-const password = process.env.CLARITYpw;
 
 export const clarityApi = createApi({
   reducerPath: 'clarityApi',
-  baseQuery: async (args, api, extraOptions) => {
-    let token;
-    const state = api.getState();
-    const orgID = state.auth.orgID;
-    const userID = state.auth.userID;
-
-    try {
-      token = await getFileMakerToken(server, 'clarityData', username, password);
-      const newArgs = {
-        ...args,
-        headers: {
-          ...args.headers,
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: {
-          ...args.body,
-        },
-      };
-
-      const baseQuery = fetchBaseQuery({ baseUrl: '/api' });
-      const result = await baseQuery(newArgs, api, extraOptions);
-
-      await releaseFileMakerToken(server, 'clarityData', token);
-
-      return result;
-    } catch (error) {
-      if (token) {
-        await releaseFileMakerToken(server, 'clarityData', token);
-      }
-      return { error: { status: 500, data: 'Token error: ' + error.message } };
-    }
-  },
+  baseQuery: fetchBaseQuery({ baseUrl: '/api' }),
   endpoints: (builder) => ({
     // Find record endpoint
     findRecord: builder.query({
@@ -180,7 +143,7 @@ export const clarityApi = createApi({
 // Export the hooks for each operation
 export const {
   useFindRecordQuery,
-  useCreateAndUpdateRecordMutation,
+  useCreateRecordMutation,
   useEditRecordMutation,
   useDeleteRecordMutation,
   useUploadToContainerMutation,
