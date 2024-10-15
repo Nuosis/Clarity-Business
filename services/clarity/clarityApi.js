@@ -1,8 +1,9 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+const appURL = process.env.NEXT_PUBLIC_APP_URL;
 
 export const clarityApi = createApi({
   reducerPath: 'clarityApi',
-  baseQuery: fetchBaseQuery({ baseUrl: '/api' }),
+  baseQuery: fetchBaseQuery({ baseUrl: `${appURL}/api` }),
   endpoints: (builder) => ({
     // Find record endpoint
     findRecord: builder.query({
@@ -60,9 +61,9 @@ export const clarityApi = createApi({
           return { error: createResponse.error };
         }
 
-        const recordID = createResponse.data.response.recordId;
+        const recordId = createResponse.data.response.recordId;
 
-        // Now call editRecord to update with recordID
+        // Now call editRecord to update with recordId
         const editResponse = await fetchWithBQ({
           url: '/editRecord',
           method: 'POST',
@@ -70,10 +71,9 @@ export const clarityApi = createApi({
             server: process.env.NEXT_PUBLIC_CLARITY_URL,
             database: 'clarityData',
             layout,
-            recordID,
+            recordId,
             fieldData: {
-              ...fieldData,
-              recordID,  // Update the record with its own recordID
+              recordId,  // Update the record with its own recordId
             },
           },
         });
@@ -89,14 +89,14 @@ export const clarityApi = createApi({
 
     // Edit record endpoint
     editRecord: builder.mutation({
-      query: ({ layout, recordID, fieldData }) => ({
+      query: ({ layout, recordId, fieldData }) => ({
         url: '/editRecord',
         method: 'POST',
         body: { 
           server: process.env.NEXT_PUBLIC_CLARITY_URL, 
           database: 'clarityData', 
           layout, 
-          recordID, 
+          recordId, 
           fieldData 
         },
       }),
@@ -105,14 +105,14 @@ export const clarityApi = createApi({
 
     // Delete record endpoint
     deleteRecord: builder.mutation({
-      query: ({ layout, recordID }) => ({
+      query: ({ layout, recordId }) => ({
         url: '/deleteRecord',
         method: 'POST',
         body: { 
           server: process.env.NEXT_PUBLIC_CLARITY_URL, 
           database: 'clarityData', 
           layout, 
-          recordID 
+          recordId
         },
       }),
       transformResponse: (response) => response.data,
@@ -120,13 +120,13 @@ export const clarityApi = createApi({
 
     // Upload to container field endpoint
     uploadToContainer: builder.mutation({
-      query: ({ layout, recordID, fieldName, file }) => {
+      query: ({ layout, recordId, fieldName, file }) => {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('server', process.env.NEXT_PUBLIC_CLARITY_URL);
         formData.append('database', 'clarityData');
         formData.append('layout', layout);
-        formData.append('recordID', recordID);
+        formData.append('recordId', recordId);
         formData.append('fieldName', fieldName);
 
         return {
@@ -137,12 +137,63 @@ export const clarityApi = createApi({
       },
       transformResponse: (response) => response.data,
     }),
+
+    findUser: builder.query({
+      query: ({ userID }) => ({
+        url: '/findRecord',
+        method: 'POST',
+        body: {
+          server: process.env.NEXT_PUBLIC_CLARITY_URL,
+          database: 'clarityData',
+          layout: 'dapiPartyObject',
+          method: 'findRecord',
+          params: {
+            query: [{ __ID: userID }],
+          },
+        },
+      }),
+      transformResponse: (response) => {
+        // Process and filter the response data here as necessary
+        const data = response.data[0];
+        const fieldData = data.fieldData;
+        const portalData = data.portalData;
+    
+        // Filter out keys starting with '~' or '_' except '__ID'
+        const filteredFieldData = Object.keys(fieldData)
+          .filter((key) => !key.startsWith('~') && (!key.startsWith('_') || key === '__ID'))
+          .reduce((acc, key) => {
+            acc[key] = fieldData[key];
+            return acc;
+          }, {});
+    
+        // Process portalData
+        const filteredPortalData = Object.keys(portalData).reduce((acc, portalKey) => {
+          const objectName = portalKey; 
+          const portalEntries = portalData[portalKey].map(entry => {
+            return Object.keys(entry)
+              .filter(key => !key.startsWith('~') && (!key.startsWith('_') || key === '__ID'))
+              .reduce((subAcc, subKey) => {
+                const cleanKey = subKey.startsWith(objectName + '::') ? subKey.split('::')[1] : subKey;
+                subAcc[cleanKey] = entry[subKey];
+                return subAcc;
+              }, {});
+          });
+          acc[portalKey.replace('dapiParty', '')] = portalEntries;
+          return acc;
+        }, {});
+    
+        return { ...filteredFieldData, ...filteredPortalData }; 
+      },
+
+
+    }),
   }),
 });
 
 // Export the hooks for each operation
 export const {
   useFindRecordQuery,
+  useFindUserQuery,
   useCreateRecordMutation,
   useEditRecordMutation,
   useDeleteRecordMutation,

@@ -1,17 +1,21 @@
 import { describe, test, expect } from 'vitest';
 
+const server = 'https://server.claritybusinesssolutions.ca'
+const database= 'clarityData'
+
 describe('FileMaker Token API Tests', () => {
   let token;
 
   // Test case for getting a token
   test('should get a FileMaker token', async () => {
-    const response = await fetch('http://localhost:3000/api/getFileMakerToken', {
+    const response = await fetch('http://localhost:3000/api/fileMaker/getFileMakerToken', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        database: 'clarityData',
+        server,
+        database,
       }),
     });
 
@@ -29,14 +33,14 @@ describe('FileMaker Token API Tests', () => {
       throw new Error('No token to release');
     }
 
-    const response = await fetch('http://localhost:3000/api/releaseFileMakerToken', {
+    const response = await fetch('http://localhost:3000/api/fileMaker/releaseFileMakerToken', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        server: process.env.NEXT_PUBLIC_CLARITY_URL,
-        database: 'clarityData',
+        server,
+        database,
         token: token,
       }),
     });

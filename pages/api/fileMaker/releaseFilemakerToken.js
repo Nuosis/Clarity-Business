@@ -2,17 +2,22 @@ export default async function handler(req, res) {
   
     // Extract token from the request body (or URL params if needed)
     const { token, database, server } = req.body;
+    //console.log('release Props:', { server, database, token });
   
     if (!token) {
       return res.status(400).json({ error: 'Missing required parameter: token' });
     }
   
     const url = `${server}/fmi/data/vLatest/databases/${database}/sessions/${token}`;
+    //console.log('FileMaker API URL:', url);
   
     try {
       // Make the DELETE request to FileMaker API
       const response = await fetch(url, {
-        method: 'DELETE',
+        method: 'DELETE',      
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
       });
   
       if (response.ok) {

@@ -1,24 +1,31 @@
+import { config } from 'dotenv';
+config({ path: '.env' });
+
 export default async function handler(req, res) {
-  const { database, layout, recordID } = req.body;
+  const { server = process.env.NEXT_PUBLIC_CLARITY_URL, database, layout, recordId } = req.body;
+  const appURL = process.env.NEXT_PUBLIC_APP_URL
+  console.log({server, database, layout, recordId, appURL})
 
   // Ensure all required parameters are present
-  if (!database || !layout || !recordID) {
+  if (!database || !layout || !recordId) {
     return res.status(400).json({
       error: 'Missing required parameters: database, layout, recordID',
     });
   }
 
-  const server = process.env.NEXT_PUBLIC_CLARITY_URL;
   let token;
 
   try {
     // Get the token from the internal API route (pages/api/getFileMakerToken.js)
-    const tokenResponse = await fetch(`/api/getFileMakerToken`, {
+    const tokenResponse = await fetch(`${appURL}/api/fileMaker/getFileMakerToken`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ database }), // Pass the database name
+      body: JSON.stringify({
+        server,
+        database,
+      }),
     });
 
     const tokenData = await tokenResponse.json();
@@ -30,13 +37,13 @@ export default async function handler(req, res) {
     token = tokenData.token; // Store the token from the response
 
     // Construct the URL for deleting a record
-    const url = `${server}/fmi/data/vLatest/databases/${database}/layouts/${layout}/records/${recordID}`;
+    const url = `${server}/fmi/data/vLatest/databases/${database}/layouts/${layout}/records/${recordId}`;
+    console.log({url})
 
     // Make the DELETE request to FileMaker API to delete the record
     const deleteResponse = await fetch(url, {
       method: 'DELETE',
       headers: {
-        'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
     });
@@ -57,7 +64,7 @@ export default async function handler(req, res) {
     if (token) {
       try {
         // Call the API route to release the token (pages/api/releaseFileMakerToken.js)
-        await fetch(`/api/releaseFileMakerToken`, {
+        await fetch(`${appURL}/api/fileMaker/releaseFileMakerToken`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

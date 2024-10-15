@@ -1,6 +1,10 @@
-export default async function handler(req, res) {
-  const { database, layout, recordId, fieldData } = req.body;
+import { config } from 'dotenv';
+config({ path: '.env' });
 
+export default async function handler(req, res) {
+  const { server = process.env.NEXT_PUBLIC_CLARITY_URL, database, layout, recordId, fieldData } = req.body;
+  const appURL = process.env.NEXT_PUBLIC_APP_URL
+  
   // Ensure all required parameters are present
   if (!database || !layout || !recordId || !fieldData) {
     return res.status(400).json({
@@ -8,17 +12,19 @@ export default async function handler(req, res) {
     });
   }
 
-  const server = process.env.NEXT_PUBLIC_CLARITY_URL;
   let token;
 
   try {
     // Get the token from the internal API route (pages/api/getFileMakerToken.js)
-    const tokenResponse = await fetch(`/api/getFileMakerToken`, {
+    const tokenResponse = await fetch(`${appURL}/api/fileMaker/getFileMakerToken`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ database }), // Pass the database name
+      body: JSON.stringify({
+        server,
+        database,
+      }),
     });
 
     const tokenData = await tokenResponse.json();
@@ -60,7 +66,7 @@ export default async function handler(req, res) {
     if (token) {
       try {
         // Call the API route to release the token (pages/api/releaseFileMakerToken.js)
-        await fetch(`/api/releaseFileMakerToken`, {
+        await fetch(`${appURL}/api/fileMaker/releaseFileMakerToken`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

@@ -1,5 +1,9 @@
+import { config } from 'dotenv';
+config({ path: '.env' });
+
 export default async function handler(req, res) {
-  const { database, layout, fieldData } = req.body;
+  const { server = process.env.NEXT_PUBLIC_CLARITY_URL, database, layout, fieldData } = req.body;
+  const appURL = process.env.NEXT_PUBLIC_APP_URL
 
   // Ensure all required parameters are present
   if (!database || !layout || !fieldData) {
@@ -8,14 +12,19 @@ export default async function handler(req, res) {
     });
   }
 
-  const server = process.env.NEXT_PUBLIC_CLARITY_URL;
   let token;
 
   try {
     // Get the token from the internal API route (pages/api/getFileMakerToken.js)
-    const tokenResponse = await fetch(`/api/getFileMakerToken`, {
-      method: 'POST',  // Internal call to your own API
-      body: JSON.stringify({ database }), // Pass the database name
+    const tokenResponse = await fetch(`${appURL}/api/fileMaker/getFileMakerToken`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        server,
+        database,
+      }),
     });
 
     const tokenData = await tokenResponse.json();
@@ -28,6 +37,7 @@ export default async function handler(req, res) {
 
     // Construct the URL for creating a new record
     const url = `${server}/fmi/data/vLatest/databases/${database}/layouts/${layout}/records`;
+    console.log('FileMaker create URL:', url);
 
     // Make the POST request to FileMaker API to create the new record
     const recordResponse = await fetch(url, {
@@ -57,7 +67,7 @@ export default async function handler(req, res) {
     if (token) {
       try {
         // Call the API route to release the token (pages/api/releaseFileMakerToken.js)
-        await fetch(`/api/releaseFileMakerToken`, {
+        await fetch(`${appURL}/api/fileMaker/releaseFileMakerToken`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

@@ -1,5 +1,7 @@
 import formidable from 'formidable';
 import fs from 'fs';
+import { config } from 'dotenv';
+config({ path: '.env' });
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -13,24 +15,29 @@ export default async function handler(req, res) {
       return res.status(500).json({ success: false, error: 'File parsing error' });
     }
 
-    const { database, layout, recordID, fieldName } = fields;
+    const { server = process.env.NEXT_PUBLIC_CLARITY_URL, database, layout, recordId, fieldName } = fields;
+    const appURL = process.env.NEXT_PUBLIC_APP_URL
     const file = files.file;
 
-    if (!database || !layout || !recordID || !fieldName || !file) {
+    if (!database || !layout || !recordId || !fieldName || !file) {
       return res.status(400).json({
-        error: 'Missing required parameters: database, layout, recordID, fieldName, file',
+        error: 'Missing required parameters: database, layout, recordId, fieldName, file',
       });
     }
 
-    const server = process.env.NEXT_PUBLIC_CLARITY_URL;
     let token;
 
     try {
       // Get the token from the internal API route (pages/api/getFileMakerToken.js)
-      const tokenResponse = await fetch(`/api/getFileMakerToken`, {
+      const tokenResponse = await fetch(`${appURL}/api/fileMaker/getFileMakerToken`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ database }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          server,
+          database,
+        }),
       });
 
       const tokenData = await tokenResponse.json();
@@ -41,7 +48,7 @@ export default async function handler(req, res) {
 
       token = tokenData.token; // Store the token
 
-      const url = `${server}/fmi/data/vLatest/databases/${database}/layouts/${layout}/records/${recordID}/containers/${fieldName}/1`;
+      const url = `${server}/fmi/data/vLatest/databases/${database}/layouts/${layout}/records/${recordId}/containers/${fieldName}/1`;
 
       const fileStream = fs.createReadStream(file.filepath);
 
@@ -66,10 +73,16 @@ export default async function handler(req, res) {
       // Release the token
       if (token) {
         try {
-          await fetch(`/api/releaseFileMakerToken`, {
+          await fetch(`${appURL}/api/fileMaker/releaseFileMakerToken`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ server, database, token }),
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              server,
+              database,
+              token,
+            }),
           });
         } catch (releaseError) {
           console.error('Failed to release FileMaker token:', releaseError);

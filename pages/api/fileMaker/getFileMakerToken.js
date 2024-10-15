@@ -1,12 +1,11 @@
 import { config } from 'dotenv';
-config({ path: '.env.test.local' });
+config({ path: '.env' });
 
 export default async function handler(req, res) {
     // Fetch credentials from environment variables for security
     const username = process.env.CLARITYun;
     const password = process.env.CLARITYpw;
-    const server = process.env.NEXT_PUBLIC_CLARITY_URL;
-    const { database } = req.body;
+    const { database, server} = req.body;
   
     if (!database) {
       return res.status(400).json({ error: 'Database name is required' });

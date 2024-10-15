@@ -1,13 +1,13 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { clarityApi } from '@/services/clarity/clarityApi';
 
-export const fetchUser = createAsyncThunk('user/fetchUser', async ({ userID, token }, { rejectWithValue, dispatch }) => {
+// AsyncThunk for fetching user data
+export const fetchUser = createAsyncThunk('user/fetchUser', async ({ userID }, { rejectWithValue, dispatch }) => {
   try {
-    console.log("fetchUser called...",userID,token)
-    // Call the RTK Query service directly
+    // Directly use the findUser query from RTK Query
     const result = await dispatch(
-      clarityApi.endpoints.findUser.initiate({ userID, token })
-    ).unwrap(); // Unwraps the result to handle success/error
+      clarityApi.endpoints.findUser.initiate({ userID })
+    ).unwrap();
 
     return result; // Return the fetched user data to be stored in state
   } catch (error) {
@@ -15,6 +15,7 @@ export const fetchUser = createAsyncThunk('user/fetchUser', async ({ userID, tok
   }
 });
 
+// Create a user slice for managing the user state
 const userSlice = createSlice({
   name: 'user',
   initialState: {
