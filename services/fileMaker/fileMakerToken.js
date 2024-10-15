@@ -1,7 +1,7 @@
 import fetch from 'node-fetch';
 
 export async function getFileMakerToken(server, database, userName, password) {
-  const url = `https://${server}/fmi/data/vLatest/databases/${database}/sessions`;
+  const url = `${server}/fmi/data/vLatest/databases/${database}/sessions`;
 
   try {
     const response = await fetch(url, {
@@ -28,7 +28,7 @@ export async function getFileMakerToken(server, database, userName, password) {
 }
 
 export async function releaseFileMakerToken(server, database, token) {
-  const url = `https://${server}/fmi/data/vLatest/databases/${database}/sessions/${token}`;
+  const url = `${server}/fmi/data/vLatest/databases/${database}/sessions/${token}`;
 
   try {
     const response = await fetch(url, {
