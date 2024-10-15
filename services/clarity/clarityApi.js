@@ -1,147 +1,187 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { getFileMakerToken, releaseFileMakerToken } from '../fileMaker/fileMakerToken';
+
+const server = process.env.NEXT_PUBLIC_CLARITY_URL;
+const username = process.env.CLARITYun;
+const password = process.env.CLARITYpw;
 
 export const clarityApi = createApi({
   reducerPath: 'clarityApi',
-  baseQuery: fetchBaseQuery({ baseUrl: process.env.NEXT_PUBLIC_CLARITY_URL }),  // Your base URL
-  endpoints: (builder) => ({
-    // Subroutine for `findRecord`
-    findRecord: builder.query({
-      query: ({ server, database, layout, query }) => ({
-        url: '/clarityData',
-        method: 'POST',
-        body: {
-          server: server || process.env.NEXT_PUBLIC_CLARITY_URL,  // Fallback to default server
-          database: database || 'clarityData',                // Default database
-          layout,
-          method: 'findRecord',                               // Method name
-          params: {query},
-        },
-      }),
-    }),
-    
-    // Subroutine for `createRecord`
-    createRecord: builder.mutation({
-      query: ({ server, database, layout, fieldData }) => ({
-        url: '/clarityData',
-        method: 'POST',
-        body: {
-          server: server || process.env.NEXT_PUBLIC_CLARITY_URL,
-          database: database || 'clarityData',
-          layout,
-          method: 'createRecord',  // Use createRecord method
-          params: {fieldData},
-        },
-      }),
-    }),
+  baseQuery: async (args, api, extraOptions) => {
+    let token;
+    const state = api.getState();
+    const orgID = state.auth.orgID;
+    const userID = state.auth.userID;
 
-    // Subroutine for `editRecord`
-    editRecord: builder.mutation({
-      query: ({ server, database, layout, recordID, fieldData }) => ({
-        url: '/clarityData',
-        method: 'POST',
-        body: {
-          server: server || process.env.NEXT_PUBLIC_CLARITY_URL,
-          database: database || 'clarityData',
-          layout,
-          method: 'editRecord',  // Use editRecord method
-          recordID,
-          params: {fieldData},
-        },
-      }),
-    }),
-
-    // Subroutine for `deleteRecord`
-    deleteRecord: builder.mutation({
-      query: ({ server, database, layout, recordID }) => ({
-        url: '/clarityData',
-        method: 'POST',
-        body: {
-          server: server || process.env.NEXT_PUBLIC_CLARITY_URL,
-          database: database || 'clarityData',
-          layout,
-          method: 'deleteRecord',  // Use deleteRecord method
-          recordID,
-        },
-      }),
-    }),
-    
-    // Subroutine for `duplicateRecord`
-    duplicateRecord: builder.mutation({
-      query: ({ server, database, layout, recordID }) => ({
-        url: '/clarityData',
-        method: 'POST',
-        body: {
-          server: server || process.env.NEXT_PUBLIC_CLARITY_URL,
-          database: database || 'clarityData',
-          layout,
-          method: 'duplicateRecord',  // Use duplicateRecord method
-          recordID,
-        },
-      }),
-    }),
-
-    findUser: builder.query({
-      query: ({ userID, token }) => ({
-        url: '/clarityData',
-        method: 'POST',
+    try {
+      token = await getFileMakerToken(server, 'clarityData', username, password);
+      const newArgs = {
+        ...args,
         headers: {
-          'Content-Type':'application/json',
-          'Authorization': `Bearer ${token}` 
+          ...args.headers,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
         body: {
-          server: process.env.NEXT_PUBLIC_CLARITY_URL,
-          database: 'clarityData',
-          layout: 'dapiPartyObject',
-          method: 'findRecord',
-          params: {
-            query: [{ __ID: userID }],
-          },
+          ...args.body,
+        },
+      };
+
+      const baseQuery = fetchBaseQuery({ baseUrl: '/api' });
+      const result = await baseQuery(newArgs, api, extraOptions);
+
+      await releaseFileMakerToken(server, 'clarityData', token);
+
+      return result;
+    } catch (error) {
+      if (token) {
+        await releaseFileMakerToken(server, 'clarityData', token);
+      }
+      return { error: { status: 500, data: 'Token error: ' + error.message } };
+    }
+  },
+  endpoints: (builder) => ({
+    // Find record endpoint
+    findRecord: builder.query({
+      query: ({ layout, query }) => ({
+        url: '/findRecord',
+        method: 'POST',
+        body: { 
+          server: process.env.NEXT_PUBLIC_CLARITY_URL, 
+          database: 'clarityData', 
+          layout, 
+          query 
         },
       }),
-      transformResponse: (response) => {
-        // Process and filter the response data here as necessary
-        const data = response.data[0];
-        const fieldData = data.fieldData;
-        const portalData = data.portalData;
-    
-        // Filter out keys starting with '~' or '_' except '__ID'
-        const filteredFieldData = Object.keys(fieldData)
-          .filter((key) => !key.startsWith('~') && (!key.startsWith('_') || key === '__ID'))
-          .reduce((acc, key) => {
-            acc[key] = fieldData[key];
-            return acc;
-          }, {});
-    
-        // Process portalData
-        const filteredPortalData = Object.keys(portalData).reduce((acc, portalKey) => {
-          const objectName = portalKey; 
-          const portalEntries = portalData[portalKey].map(entry => {
-            return Object.keys(entry)
-              .filter(key => !key.startsWith('~') && (!key.startsWith('_') || key === '__ID'))
-              .reduce((subAcc, subKey) => {
-                const cleanKey = subKey.startsWith(objectName + '::') ? subKey.split('::')[1] : subKey;
-                subAcc[cleanKey] = entry[subKey];
-                return subAcc;
-              }, {});
-          });
-          acc[portalKey.replace('dapiParty', '')] = portalEntries;
-          return acc;
-        }, {});
-    
-        return { ...filteredFieldData, ...filteredPortalData }; 
+      transformResponse: (response) => response.data,
+    }),
+
+    // Create record endpoint and then update with the recordId
+    createRecord: builder.mutation({
+      async queryFn({ layout, fieldData }, _queryApi, _extraOptions, fetchWithBQ) {
+        // Generate UTC and formatted timestamps
+        const utc = Date.now();  
+        const vancouverDate = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Vancouver" }));
+        const dateOptions = { year: 'numeric', month: '2-digit', day: '2-digit' };
+        const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+        const formattedDate = new Intl.DateTimeFormat('en-US', dateOptions).format(vancouverDate);
+        const formattedTime = new Intl.DateTimeFormat('en-US', timeOptions).format(vancouverDate);
+        const fileMakerDate = `${formattedDate} ${formattedTime}`;
+
+        // Add metadata to fieldData
+        fieldData = {
+          ...fieldData,
+          "_orgID": orgID,
+          "~ModifiedBy": userID,
+          "~CreatedBy": userID,
+          "~modifiedUTC": utc,
+          "~syncUTC": utc,
+          "~CreationTimestamp": fileMakerDate,
+          "~ModificationTimestamp": fileMakerDate,
+        };
+
+        // First create the record
+        const createResponse = await fetchWithBQ({
+          url: '/createRecord',
+          method: 'POST',
+          body: {
+            server: process.env.NEXT_PUBLIC_CLARITY_URL,
+            database: 'clarityData',
+            layout,
+            fieldData,
+          },
+        });
+
+        // Check if record creation was successful
+        if (createResponse.error) {
+          return { error: createResponse.error };
+        }
+
+        const recordID = createResponse.data.response.recordId;
+
+        // Now call editRecord to update with recordID
+        const editResponse = await fetchWithBQ({
+          url: '/editRecord',
+          method: 'POST',
+          body: {
+            server: process.env.NEXT_PUBLIC_CLARITY_URL,
+            database: 'clarityData',
+            layout,
+            recordID,
+            fieldData: {
+              ...fieldData,
+              recordID,  // Update the record with its own recordID
+            },
+          },
+        });
+
+        if (editResponse.error) {
+          return { error: editResponse.error };
+        }
+
+        return { data: editResponse.data };
       },
+      transformResponse: (response) => response.data,
+    }),
 
+    // Edit record endpoint
+    editRecord: builder.mutation({
+      query: ({ layout, recordID, fieldData }) => ({
+        url: '/editRecord',
+        method: 'POST',
+        body: { 
+          server: process.env.NEXT_PUBLIC_CLARITY_URL, 
+          database: 'clarityData', 
+          layout, 
+          recordID, 
+          fieldData 
+        },
+      }),
+      transformResponse: (response) => response.data,
+    }),
 
+    // Delete record endpoint
+    deleteRecord: builder.mutation({
+      query: ({ layout, recordID }) => ({
+        url: '/deleteRecord',
+        method: 'POST',
+        body: { 
+          server: process.env.NEXT_PUBLIC_CLARITY_URL, 
+          database: 'clarityData', 
+          layout, 
+          recordID 
+        },
+      }),
+      transformResponse: (response) => response.data,
+    }),
+
+    // Upload to container field endpoint
+    uploadToContainer: builder.mutation({
+      query: ({ layout, recordID, fieldName, file }) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('server', process.env.NEXT_PUBLIC_CLARITY_URL);
+        formData.append('database', 'clarityData');
+        formData.append('layout', layout);
+        formData.append('recordID', recordID);
+        formData.append('fieldName', fieldName);
+
+        return {
+          url: '/uploadToContainer',
+          method: 'POST',
+          body: formData,
+        };
+      },
+      transformResponse: (response) => response.data,
     }),
   }),
 });
 
-// Export hooks for each operation
+// Export the hooks for each operation
 export const {
   useFindRecordQuery,
-  useFindUserQuery,
-  useCreateRecordMutation,
+  useCreateAndUpdateRecordMutation,
   useEditRecordMutation,
   useDeleteRecordMutation,
-  useDuplicateRecordMutation,
+  useUploadToContainerMutation,
 } = clarityApi;
